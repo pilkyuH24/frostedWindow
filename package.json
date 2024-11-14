@@ -1,0 +1,18 @@
+{
+  "name": "easeljs-vite-demo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.3",
+    "createjs-module": "^0.8.3"
+  }
+}
