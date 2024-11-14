@@ -6,13 +6,15 @@ import {
   AlphaMaskFilter,
   ColorMatrixFilter,
   Tween,
-  Ease
+  Ease,
 } from "createjs-module";
 
 // App 함수를 기본 내보내기로 설정
 export default function App() {
   // HTML에서 <canvas> 요소 가져오기
   const canvas = document.getElementById("testCanvas");
+  canvas.width = window.innerWidth * 0.9;
+  canvas.height = window.innerHeight * 0.9;
   // Stage 생성 - 캔버스를 관리하는 객체
   const stage = new Stage(canvas);
 
@@ -39,13 +41,15 @@ export default function App() {
     // 블러 처리된 배경 설정
     blurBitmap = new Bitmap(image);
     blurBitmap.filters = [
-      new ColorMatrixFilter([    // 색상 필터 적용 (색상 조정)
-        60, 0, 0, 0, 0,
-        0, 60, 0, 0, 0,
-        0, 0, 60, 0, 0,
-        0, 0, 0, 1, 0,
+      new createjs.ColorMatrixFilter([
+        0.05, 0, 0, 0, 0,   // Red 채널
+        0, 0.05, 0, 0, 0,   // Green 채널
+        0, 0, 0.05, 0, 0,   // Blue 채널
+        0, 0, 0, .9, 0,   // Alpha (투명도)
+        0, 0, 0, 0, 0.1  // 추가값 (흰색 느낌을 주기 위한 밝기 조정)
       ]),
     ];
+    
     blurBitmap.cache(0, 0, image.width, image.height); // 블러 및 색상 필터 캐시
 
     // 마스크를 적용할 원본 이미지 설정
@@ -81,113 +85,108 @@ export default function App() {
   }
 
   // 마우스가 움직일 때 실행되는 함수
-  function handleMouseMove() {
-    if (!isDrawing) {
-      return;
-    }
-    // 커서 위치를 마우스 좌표에 맞춰 이동
-    cursor.x = stage.mouseX;
-    cursor.y = stage.mouseY;
+  // 마우스 이동 중에 그리기
+// 마우스 이동 중에 그리기
+function handleMouseMove() {
+  if (!isDrawing) return;
+  
+  // 현재 마우스 위치와 이전 위치를 연결하는 중간점 계산
+  const midPoint = {
+    x: (oldPt.x + stage.mouseX) / 2, // x 좌표 중간값
+    y: (oldPt.y + stage.mouseY) / 2, // y 좌표 중간값
+  };
 
-    // 드로잉 상태가 아닐 경우 Stage 업데이트만 수행
-    stage.update();
+  // 드래그 속도 계산
+  let speed = Math.abs(stage.mouseX - oldPt.x);  // x 축에서의 속도 계산
+  let density = Math.min(10, speed / 2);  // 속도에 따라 선의 밀도 조절 (최대 10)
 
-
-    // 현재 마우스 좌표와 이전 좌표의 중간점을 계산
-    const midPoint = {
-      x: (oldPt.x + stage.mouseX) >> 1, // x 좌표 중간값
-      y: (oldPt.y + stage.mouseY) >> 1, // y 좌표 중간값
-    };
-
-    // 드로잉 캔버스에 곡선 그리기 (부드럽게)
+  // 선을 여러 번 그려서 부드럽게 만듦
+  for (let i = 0; i < density; i++) {
     drawingCanvas.graphics
-      .setStrokeStyle(40, "round", "round") // 선 두께와 끝 모양 설정
-      .beginStroke("rgba(0,0,0,0.2)") // 선 색상 설정 (약간 투명)
+      .setStrokeStyle(40, "round", "round") // 선 두께와 끝 모양을 설정
+      .beginStroke("rgba(0,0,0,0.2)") // 선 색상
       .moveTo(midPoint.x, midPoint.y) // 시작점
-      .curveTo(oldPt.x, oldPt.y, oldMidPt.x, oldMidPt.y); // 곡선 그리기
-
-    // 이전 좌표 갱신
-    oldPt = { x: stage.mouseX, y: stage.mouseY };
-    oldMidPt = midPoint;
-
-    // 드로잉 캔버스와 마스크를 다시 캐시하여 업데이트
-    drawingCanvas.updateCache("source-over");
-    maskFilter = new AlphaMaskFilter(drawingCanvas.cacheCanvas); // 업데이트된 마스크 적용
-    bitmap.filters = [maskFilter]; // 필터 다시 적용
-    bitmap.updateCache(); // 캐시 업데이트
-
-    // Stage 업데이트하여 화면 갱신
-    stage.update();
+      .curveTo(oldPt.x, oldPt.y, oldMidPt.x, oldMidPt.y); // 기존 점과 새로운 점을 부드럽게 연결
   }
 
-  // 마우스를 뗐을 때 실행되는 함수
-  // 필요한 변수들 선언
-let raindrops = []; // 물방울 객체들을 저장할 배열
+  // 이전 좌표 갱신
+  oldPt = { x: stage.mouseX, y: stage.mouseY };
+  oldMidPt = midPoint;
 
-function handleMouseUp() {
-  if (!isDrawing) return; // 드로잉 상태가 아니면 아무 것도 하지 않음
-  
-  isDrawing = false; // 드로잉 종료
-  // 물방울 객체 생성
-  let rad = 15; // 물방울의 크기
-  let raindrop = new Shape();
-  raindrop.graphics
-    .drawCircle(0, 0, rad); // 물방울 크기 설정
+  // 캐시 업데이트 및 마스크 갱신
+  drawingCanvas.updateCache("source-over");
+  maskFilter = new AlphaMaskFilter(drawingCanvas.cacheCanvas);
+  bitmap.filters = [maskFilter];
+  bitmap.updateCache();
 
-  raindrop.x = stage.mouseX;
-  raindrop.y = stage.mouseY;
-  stage.addChild(raindrop);
-
-  // 물방울 객체를 배열에 추가
-  raindrops.push(raindrop);
-
-  // 마스크를 갱신하기 전에 초기 상태로 설정
-  raindrop.radius = rad;
-
-  console.log("물방울 생성됨. 초기 크기:", raindrop.radius);
-
-  // 즉시 한 번 업데이트 해주기 (첫 프레임에서 마스크를 갱신하도록)
-  updateRaindropMask();
-
-  // 물방울 애니메이션 시작 (Tween 사용)
-  let raindropTween = Tween.get(raindrop)
-    .to({ y: stage.mouseY + 2.0, radius: rad * 1.0 }, 500, Ease.quadIn) // 1초 동안 내려감
-    .to({ y: image.height * 0.15 + stage.mouseY, radius: rad * 0.7 }, 1000, Ease.linear) // 크기를 1배에서 0.5배로 줄임
-    .to({ y: image.height * 0.3 + stage.mouseY, radius: rad * 0.5 }, 2500, Ease.linear) // 일정 속도로 계속 내려감
-    .call(() => {
-      console.log("물방울 애니메이션 종료");
-    });
-
-  // 애니메이션이 진행되면서 마스크를 계속 갱신하도록 설정
-  createjs.Ticker.addEventListener("tick", updateRaindropMask);
-}
-
-function updateRaindropMask() {
-  // 각 물방울에 대해 독립적으로 마스크를 업데이트
-  raindrops.forEach(raindrop => {
-    drawingCanvas.graphics.clear();
-    drawingCanvas.graphics
-      .beginFill("rgba(0,0,0,1)") // 물방울의 크기와 위치에 맞는 마스크 생성
-      .drawCircle(raindrop.x, raindrop.y, raindrop.radius); // 크기(radius)를 적용
-
-    drawingCanvas.updateCache("source-over"); // 캐시를 갱신
-    maskFilter = new AlphaMaskFilter(drawingCanvas.cacheCanvas); // 갱신된 마스크 적용
-    bitmap.filters = [maskFilter]; // 필터 다시 적용
-    bitmap.updateCache(); // 캐시 업데이트
-  });
-
-  // Stage 업데이트
+  // 화면 업데이트
   stage.update();
 }
 
-  
-  // 물방울 애니메이션 상태 확인 함수 (디버그용)
-  createjs.Ticker.addEventListener("tick", function() {
-    if (raindropTween) {
-      const progress = raindropTween._prevPosition / raindropTween._duration * 100;
-      console.log(`애니메이션 진행 중: ${Math.round(progress)}%`);
-    }
-  });
-  
-  
+
+
+  // 마우스를 뗐을 때 실행되는 함수
+  // 필요한 변수들 선언
+  let raindrops = []; // 물방울 객체들을 저장할 배열
+
+  function handleMouseUp() {
+    if (!isDrawing) return; // 드로잉 상태가 아니면 아무 것도 하지 않음
+
+    isDrawing = false; // 드로잉 종료
+    // 물방울 객체 생성
+    let rad = 15; // 물방울의 크기
+    let raindrop = new Shape();
+    raindrop.graphics.drawCircle(0, 0, rad); // 물방울 크기 설정
+
+    raindrop.x = stage.mouseX;
+    raindrop.y = stage.mouseY;
+    stage.addChild(raindrop);
+
+    // 물방울 객체를 배열에 추가
+    raindrops.push(raindrop);
+
+    // 마스크를 갱신하기 전에 초기 상태로 설정
+    raindrop.radius = rad;
+
+
+    // 즉시 한 번 업데이트 해주기 (첫 프레임에서 마스크를 갱신하도록)
+    updateRaindropMask();
+
+    // 물방울 애니메이션 시작 (Tween 사용)
+    let raindropTween = Tween.get(raindrop)
+      .to({ y: stage.mouseY + 2.0, radius: rad * 1.0 }, 500, Ease.quadIn) // 1초 동안 내려감
+      .to(
+        { y: image.height * 0.15 + stage.mouseY, radius: rad * 0.7 },
+        1000,
+        Ease.linear
+      ) // 크기를 1배에서 0.5배로 줄임
+      .to(
+        { y: image.height * 0.3 + stage.mouseY, radius: rad * 0.5 },
+        2500,
+        Ease.linear
+      ) // 일정 속도로 계속 내려감
+      .call(() => {
+      });
+
+    // 애니메이션이 진행되면서 마스크를 계속 갱신하도록 설정
+    createjs.Ticker.addEventListener("tick", updateRaindropMask);
+  }
+
+  function updateRaindropMask() {
+    // 각 물방울에 대해 독립적으로 마스크를 업데이트
+    raindrops.forEach((raindrop) => {
+      drawingCanvas.graphics.clear();
+      drawingCanvas.graphics
+        .beginFill("rgba(0,0,0,1)") // 물방울의 크기와 위치에 맞는 마스크 생성
+        .drawCircle(raindrop.x, raindrop.y, raindrop.radius); // 크기(radius)를 적용
+
+      drawingCanvas.updateCache("source-over"); // 캐시를 갱신
+      maskFilter = new AlphaMaskFilter(drawingCanvas.cacheCanvas); // 갱신된 마스크 적용
+      bitmap.filters = [maskFilter]; // 필터 다시 적용
+      bitmap.updateCache(); // 캐시 업데이트
+    });
+
+    // Stage 업데이트
+    stage.update();
+  }
 }
