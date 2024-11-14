@@ -3,15 +3,12 @@ body {
     background-color: #2c2c2c;
     color: white;
     margin: 0;
-    padding: 20px;
   }
   
-  canvas {
-    margin-top: 20px;
+  #testCanvas {
+    display: block;  /* 기본적으로 canvas는 inline 요소이므로 block으로 설정 */
+    padding-top: 2%;
+    margin: 0 auto;  /* 화면 가운데 정렬 */
+    justify-self: center;
   }
   
-  .blur-image {
-    width: 100%;
-    max-width: 500px; /* 이미지 크기 조절 */
-    filter: blur(10px); /* 블러 효과 적용 */
-}
