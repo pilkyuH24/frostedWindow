@@ -8,9 +8,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let rainRow1 = document.querySelector(".start-row1");
   let rainRow2 = document.querySelector(".start-row2");
   let rainRow3 = document.querySelector(".start-row3");
-  const backgroundMusic = document.getElementById('background-music');
-  const speakerButton = document.getElementById('speaker-button');
-  const speakerIcon = document.getElementById('speaker-icon');
+  const backgroundMusic = document.getElementById("background-music");
+  const speakerButton = document.getElementById("speaker-button");
+  const speakerIcon = document.getElementById("speaker-icon");
 
   makeItRain();
 
@@ -20,9 +20,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     mainContent.style.display = "block";
 
-    if(rainRow1) rainRow1.remove(); 
-    if(rainRow2) rainRow2.remove();
-    if(rainRow3) rainRow3.remove();
+    if (rainRow1) rainRow1.remove();
+    if (rainRow2) rainRow2.remove();
+    if (rainRow3) rainRow3.remove();
 
     App();
 
@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
           updateSpeakerIcon();
         })
         .catch((error) => {
-          console.log("음악 재생 실패:", error);
+          console.log("music playing error:", error);
         });
     } else {
       backgroundMusic.pause();
@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
       isMusicPlaying = false;
     } else {
       backgroundMusic.play().catch((error) => {
-        console.log("음악 재생 실패:", error);
+        console.log("music playing error:", error);
       });
       isMusicPlaying = true;
     }
@@ -58,13 +58,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateSpeakerIcon() {
     if (isMusicPlaying) {
-      speakerIcon.src = "../public/speaker-2-svgrepo-com.svg"; 
+      speakerIcon.src = "/speaker-2-svgrepo-com.svg";
+      speakerIcon.alt = "Playing";
       speakerButton.setAttribute("aria-pressed", "true");
-      speakerIcon.alt = "음악 재생 중";
     } else {
-      speakerIcon.src = "../public/speaker-disabled-svgrepo-com.svg"; 
+      speakerIcon.src = "/speaker-disabled-svgrepo-com.svg";
+      speakerIcon.alt = "Paused";
       speakerButton.setAttribute("aria-pressed", "false");
-      speakerIcon.alt = "음악 정지 중";
     }
   }
 
