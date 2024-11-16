@@ -3,4 +3,4 @@
 3. Smooth Tween Animations During Masking The raindrop effect is implemented using animation functions like Tween and Ease, ensuring a natural flow and uninterrupted animations even during masking operations.
 4. Minimizing Performance Degradation from Repeated Masking Operations Optimized graphic processing is applied to minimize performance degradation while frequently updating the canvas and mask filters.
 
-![Alt text](./pulic/Rainy.png)
+![Alt text](/Rainy.png)
