@@ -1,4 +1,3 @@
-// 필요한 모듈을 import
 import {
   Stage,
   Bitmap,
@@ -9,184 +8,321 @@ import {
   Ease,
 } from "createjs-module";
 
-// App 함수를 기본 내보내기로 설정
+// Main App function
 export default function App() {
-  // HTML에서 <canvas> 요소 가져오기
-  const canvas = document.getElementById("testCanvas");
-  canvas.width = window.innerWidth * 0.9;
-  canvas.height = window.innerHeight * 0.9;
-  // Stage 생성 - 캔버스를 관리하는 객체
+  const canvas = document.getElementById("mainCanvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
   const stage = new Stage(canvas);
 
-  // 필요한 변수들 선언
+  // Declare variables for various elements and states
   let drawingCanvas, bitmap, blurBitmap, maskFilter, cursor;
-  let isDrawing = false; // 현재 드로잉 중인지 확인하는 플래그
-  let oldPt, oldMidPt; // 이전 마우스 위치를 저장
-  let raindrop; // 물방울 객체를 저장할 변수
-  let raindropTween; // 물방울의 tween을 저장할 변수
+  let isDrawing = false;
+  let oldPt, oldMidPt;
+  let canvasWidth, canvasHeight;
+  let cropWidth, cropHeight, cropX, cropY;
+  let intervalId;
+  let raindrops = [];
+  let savedPoints = [];
 
-  // 새로운 이미지 객체 생성
+  // Load background image
   const image = new Image();
-  image.src = "/bg.png"; // 이미지 소스 설정
+  image.src = "/bg.png";
 
-  // 이미지가 로드되면 handleComplete 함수 호출
-  image.onload = () => handleComplete(image);
+  // Event handler when the background image has loaded
+  image.onload = () => {
+    // Calculate the maximum width and height based on the window size
+    const maxCanvasWidth = window.innerWidth * 0.99;
+    const maxCanvasHeight = window.innerHeight * 0.85;
 
-  // 이미지가 로드된 후 초기화 함수
-  function handleComplete(image) {
-    // 드로잉 캔버스 설정 (Shape 객체 사용)
-    drawingCanvas = new Shape();
-    drawingCanvas.cache(0, 0, image.width, image.height);
+    // Calculate aspect ratios for the image and the canvas
+    const imageAspectRatio = image.width / image.height;
+    const canvasAspectRatio = maxCanvasWidth / maxCanvasHeight;
 
-    // 블러 처리된 배경 설정
+    // Determine how to scale and crop the image based on aspect ratios
+    if (imageAspectRatio > canvasAspectRatio) {
+      // Image is wider than canvas
+      canvasHeight = maxCanvasHeight;
+      canvasWidth = canvasHeight * canvasAspectRatio;
+      cropHeight = image.height;
+      cropWidth = cropHeight * canvasAspectRatio;
+      cropX = (image.width - cropWidth) / 2;
+      cropY = 0;
+    } else {
+      // Image is taller than or equal to canvas
+      canvasWidth = maxCanvasWidth;
+      canvasHeight = canvasWidth / canvasAspectRatio;
+      cropWidth = image.width;
+      cropHeight = cropWidth / canvasAspectRatio;
+      cropX = 0;
+      cropY = (image.height - cropHeight) / 2;
+    }
+
+    // Set the canvas dimensions
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+
+    // Call the handleComplete function with the calculated cropping parameters
+    handleComplete(image, cropX, cropY, cropWidth, cropHeight);
+  };
+
+  function handleComplete(image, cropX, cropY, cropWidth, cropHeight) {
+    // Create a blurred bitmap from the background image
     blurBitmap = new Bitmap(image);
-    blurBitmap.filters = [
+    blurBitmap.sourceRect = new createjs.Rectangle(
+      cropX,
+      cropY,
+      cropWidth,
+      cropHeight
+    );
+    blurBitmap.scaleX = canvas.width / cropWidth;
+    blurBitmap.scaleY = canvas.height / cropHeight;
+    // Apply a color matrix filter to create a blur effect
+    var filters = [
+      new createjs.BlurFilter(15, 15, 5), // BlurFilter(blurX, blurY, quality)
       new createjs.ColorMatrixFilter([
-        0.05, 0, 0, 0, 0,   // Red 채널
-        0, 0.05, 0, 0, 0,   // Green 채널
-        0, 0, 0.05, 0, 0,   // Blue 채널
-        0, 0, 0, .9, 0,   // Alpha (투명도)
-        0, 0, 0, 0, 0.1  // 추가값 (흰색 느낌을 주기 위한 밝기 조정)
+        0.18, 0, 0, 0, 0, 0, 0.18, 0, 0, 0, 0, 0, 0.21, 0, 0, 0, 0, 0, 0.9, 0,
+        0, 0, 0, 0, 0.1,
       ]),
     ];
-    
-    blurBitmap.cache(0, 0, image.width, image.height); // 블러 및 색상 필터 캐시
+    blurBitmap.filters = filters;
 
-    // 마스크를 적용할 원본 이미지 설정
+    // Cache the blurred bitmap for performance
+    blurBitmap.cache(0, 0, cropWidth, cropHeight);
+
+    stage.addChild(blurBitmap, bitmap);
+    stage.update();
+
+    // Create the main bitmap from the background image
     bitmap = new Bitmap(image);
-    maskFilter = new AlphaMaskFilter(drawingCanvas.cacheCanvas); // 드로잉 캔버스를 마스크로 사용
-    bitmap.filters = [maskFilter]; // 마스크 필터 적용
-    bitmap.cache(0, 0, image.width, image.height); // 캐시하여 성능 최적화
+    // Set the source rectangle to crop the image
+    bitmap.sourceRect = new createjs.Rectangle(
+      cropX,
+      cropY,
+      cropWidth,
+      cropHeight
+    );
+    // Scale the bitmap to fit the canvas
+    bitmap.scaleX = canvas.width / cropWidth;
+    bitmap.scaleY = canvas.height / cropHeight;
 
-    // Stage에 블러 이미지와 마스크된 이미지를 추가
+    drawingCanvas = new Shape();
+    // Cache the drawing canvas for performance
+    drawingCanvas.cache(0, 0, cropWidth, cropHeight);
+
+    // Create an alpha mask filter using the drawing canvas
+    maskFilter = new AlphaMaskFilter(drawingCanvas.cacheCanvas);
+    // Apply the mask filter to the bitmap to enable drawing effects
+    bitmap.filters = [maskFilter];
+    // Cache the bitmap with the applied filter
+    bitmap.cache(0, 0, cropWidth, cropHeight);
+
+    // Add both the blurred bitmap and the main bitmap to the stage
     stage.addChild(blurBitmap, bitmap);
 
-    // 커서 모양 설정 (원형으로 표시)
+    // Set up the cursor appearance as a semi-transparent circle
     cursor = new Shape();
-    cursor.graphics.drawCircle(0, 0, 25);
-    cursor.alpha = 0.99; // 약간 투명하게 설정
+    cursor.graphics.beginFill("rgba(155, 155, 155, 0.4)").drawCircle(0, 0, 25);
+    cursor.alpha = 0.5;
+    cursor.x = 0;
+    cursor.y = 0;
     stage.addChild(cursor);
 
-    // Stage에 이벤트 리스너 추가 (마우스 동작 처리)
+    // Add event listeners to update the cursor position based on mouse movement
+    stage.addEventListener("stagemousemove", handleCursorFollow);
+    // Add event listeners for mouse interactions (down, up, move)
     stage.addEventListener("stagemousedown", handleMouseDown);
     stage.addEventListener("stagemouseup", handleMouseUp);
     stage.addEventListener("stagemousemove", handleMouseMove);
 
-    // Stage 업데이트하여 초기 상태 렌더링
+    // Set the ticker to run at 60 frames per second
+    createjs.Ticker.framerate = 60;
+    createjs.Ticker.addEventListener("tick", stage);
+  }
+
+  /**
+   * Event handler to update the cursor position based on mouse movement
+   * @param {Object} event - The mouse move event
+   */
+  function handleCursorFollow(event) {
+    cursor.x = event.stageX;
+    cursor.y = event.stageY;
     stage.update();
   }
 
-  // 마우스가 눌렸을 때 실행되는 함수
+  /**
+   * Function to get the adjusted mouse position based on canvas scaling
+   * @returns {Object} An object containing the adjusted x and y coordinates
+   */
+  function getAdjustedMousePosition() {
+    // Calculate the scaling factors between the crop area and the canvas
+    const scaleX = cropWidth / canvas.width;
+    const scaleY = cropHeight / canvas.height;
+    // Return the scaled mouse coordinates
+    return { x: stage.mouseX * scaleX, y: stage.mouseY * scaleY };
+  }
+
+  /**
+   * Event handler for when the mouse button is pressed down
+   */
   function handleMouseDown() {
-    // 현재 마우스 좌표를 저장
-    oldPt = { x: stage.mouseX, y: stage.mouseY };
+    const adjustedPos = getAdjustedMousePosition();
+    // Store the current position as the old point
+    oldPt = { x: adjustedPos.x, y: adjustedPos.y };
     oldMidPt = oldPt;
-    isDrawing = true; // 드로잉 모드 활성화
+    isDrawing = true;
+
+    // Start saving points at random intervals
+    intervalId = setInterval(() => {
+      if (isDrawing) {
+        const pos = getAdjustedMousePosition();
+        savedPoints.push({ x: pos.x, y: pos.y }); // Save the current point
+      }
+    }, 100 + Math.random() * 200);
   }
 
-  // 마우스가 움직일 때 실행되는 함수
-  // 마우스 이동 중에 그리기
-// 마우스 이동 중에 그리기
-function handleMouseMove() {
-  if (!isDrawing) return;
-  
-  // 현재 마우스 위치와 이전 위치를 연결하는 중간점 계산
-  const midPoint = {
-    x: (oldPt.x + stage.mouseX) / 2, // x 좌표 중간값
-    y: (oldPt.y + stage.mouseY) / 2, // y 좌표 중간값
-  };
+  /**
+   * Event handler for mouse movement while drawing
+   */
+  function handleMouseMove() {
+    // If not currently drawing, exit the function
+    if (!isDrawing) return;
 
-  // 드래그 속도 계산
-  let speed = Math.abs(stage.mouseX - oldPt.x);  // x 축에서의 속도 계산
-  let density = Math.min(10, speed / 2);  // 속도에 따라 선의 밀도 조절 (최대 10)
+    const adjustedPos = getAdjustedMousePosition();
+    // Calculate the midpoint between the old point and the current position
+    const midPoint = {
+      x: (oldPt.x + adjustedPos.x) / 2,
+      y: (oldPt.y + adjustedPos.y) / 2,
+    };
 
-  // 선을 여러 번 그려서 부드럽게 만듦
-  for (let i = 0; i < density; i++) {
-    drawingCanvas.graphics
-      .setStrokeStyle(40, "round", "round") // 선 두께와 끝 모양을 설정
-      .beginStroke("rgba(0,0,0,0.2)") // 선 색상
-      .moveTo(midPoint.x, midPoint.y) // 시작점
-      .curveTo(oldPt.x, oldPt.y, oldMidPt.x, oldMidPt.y); // 기존 점과 새로운 점을 부드럽게 연결
+    // Calculate the speed based on the change in x-coordinate
+    let speed = Math.abs(stage.mouseX - oldPt.x); // Speed calculation on the x-axis
+    // Determine the density of lines based on speed, capped at 10
+    let density = Math.min(10, speed / 2); // Adjust line density based on speed
+
+    // Draw multiple lines to create a smoother effect based on density
+    for (let i = 0; i < density; i++) {
+      drawingCanvas.graphics
+        .setStrokeStyle(60, "round", "round") // Set line thickness and end caps
+        .beginStroke("rgba(0,0,0,0.2)")
+        .moveTo(midPoint.x, midPoint.y)
+        .curveTo(oldPt.x, oldPt.y, oldMidPt.x, oldMidPt.y);
+    }
+
+    oldPt = { x: adjustedPos.x, y: adjustedPos.y };
+    oldMidPt = midPoint;
+
+    // Update the cache of the drawing canvas with the new graphics
+    drawingCanvas.updateCache("source-over");
+
+    maskFilter = new AlphaMaskFilter(drawingCanvas.cacheCanvas);
+    bitmap.filters = [maskFilter];
+    bitmap.updateCache();
+
+    // Update the stage to render the new drawings
+    stage.update();
   }
 
-  // 이전 좌표 갱신
-  oldPt = { x: stage.mouseX, y: stage.mouseY };
-  oldMidPt = midPoint;
-
-  // 캐시 업데이트 및 마스크 갱신
-  drawingCanvas.updateCache("source-over");
-  maskFilter = new AlphaMaskFilter(drawingCanvas.cacheCanvas);
-  bitmap.filters = [maskFilter];
-  bitmap.updateCache();
-
-  // 화면 업데이트
-  stage.update();
-}
-
-
-
-  // 마우스를 뗐을 때 실행되는 함수
-  // 필요한 변수들 선언
-  let raindrops = []; // 물방울 객체들을 저장할 배열
-
+  /**
+   * Event handler for when the mouse button is released
+   */
   function handleMouseUp() {
-    if (!isDrawing) return; // 드로잉 상태가 아니면 아무 것도 하지 않음
+    // Set the drawing flag to false
+    isDrawing = false;
 
-    isDrawing = false; // 드로잉 종료
-    // 물방울 객체 생성
-    let rad = 15; // 물방울의 크기
+    const adjustedPos = getAdjustedMousePosition();
+
+    // Create a raindrop at the current mouse position
+    createRaindrop(adjustedPos.x, adjustedPos.y);
+
+    // Iterate through all saved points and create raindrops at each position
+    savedPoints.forEach((point) => {
+      createRaindrop(point.x, point.y);
+    });
+
+    // Clear the saved points array as they have been processed
+    savedPoints = [];
+
+    // If an interval was set for saving points, clear it to stop saving
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  }
+
+  /**
+   * Function to create a raindrop shape at a specified position
+   * @param {number} x - The x-coordinate for the raindrop
+   * @param {number} y - The y-coordinate for the raindrop
+   */
+  function createRaindrop(x, y) {
+    let rad = 25; // Initial radius of the raindrop
+
     let raindrop = new Shape();
-    raindrop.graphics.drawCircle(0, 0, rad); // 물방울 크기 설정
-
-    raindrop.x = stage.mouseX;
-    raindrop.y = stage.mouseY;
+    raindrop.graphics.drawCircle(0, 0, rad);
+    raindrop.x = x;
+    raindrop.y = y;
     stage.addChild(raindrop);
 
-    // 물방울 객체를 배열에 추가
+    // Add the raindrop to the raindrops array for tracking
     raindrops.push(raindrop);
-
-    // 마스크를 갱신하기 전에 초기 상태로 설정
     raindrop.radius = rad;
 
-
-    // 즉시 한 번 업데이트 해주기 (첫 프레임에서 마스크를 갱신하도록)
-    updateRaindropMask();
-
-    // 물방울 애니메이션 시작 (Tween 사용)
-    let raindropTween = Tween.get(raindrop)
-      .to({ y: stage.mouseY + 2.0, radius: rad * 1.0 }, 500, Ease.quadIn) // 1초 동안 내려감
+    // Create a tween animation for the raindrop's movement and scaling
+    Tween.get(raindrop)
+      .to({ y: y + 30, radius: rad * 0.7 }, 500, Ease.cubicOut) // Move down and shrink
       .to(
-        { y: image.height * 0.15 + stage.mouseY, radius: rad * 0.7 },
+        {
+          y: y + (20 + Math.random() * 50),
+          radius: rad * (0.5 + Math.random() * 0.1),
+        },
         1000,
-        Ease.linear
-      ) // 크기를 1배에서 0.5배로 줄임
+        Ease.quadOut
+      )
       .to(
-        { y: image.height * 0.3 + stage.mouseY, radius: rad * 0.5 },
-        2500,
+        {
+          y: canvas.height * (0.1 + Math.random() * 0.5) + y,
+          radius: rad * (0.35 + Math.random() * 0.15),
+        },
+        6000,
         Ease.linear
-      ) // 일정 속도로 계속 내려감
+      )
       .call(() => {
+        const currentY = raindrop.y;
+        Tween.get(raindrop).to(
+          { y: currentY + 30, radius: rad * 0.5 },
+          1000,
+          Ease.linear
+        );
       });
 
-    // 애니메이션이 진행되면서 마스크를 계속 갱신하도록 설정
+    // Add an event listener to update the raindrop mask on each tick
     createjs.Ticker.addEventListener("tick", updateRaindropMask);
   }
 
+  /**
+   * Function to update the mask for all raindrops, creating a ripple effect
+   */
   function updateRaindropMask() {
-    // 각 물방울에 대해 독립적으로 마스크를 업데이트
+    // Iterate through each raindrop in the array
     raindrops.forEach((raindrop) => {
-      drawingCanvas.graphics.clear();
       drawingCanvas.graphics
-        .beginFill("rgba(0,0,0,1)") // 물방울의 크기와 위치에 맞는 마스크 생성
-        .drawCircle(raindrop.x, raindrop.y, raindrop.radius); // 크기(radius)를 적용
+        .beginFill("rgba(0,0,0,1)")
+        .drawCircle(raindrop.x, raindrop.y, raindrop.radius);
+      // Clear any previous drawings on the drawing canvas
+      drawingCanvas.graphics.clear();
+      // Begin a new fill with solid black
+      drawingCanvas.graphics
+        .beginFill("rgba(0,0,0,1)")
+        .drawCircle(raindrop.x, raindrop.y, raindrop.radius);
 
-      drawingCanvas.updateCache("source-over"); // 캐시를 갱신
-      maskFilter = new AlphaMaskFilter(drawingCanvas.cacheCanvas); // 갱신된 마스크 적용
-      bitmap.filters = [maskFilter]; // 필터 다시 적용
-      bitmap.updateCache(); // 캐시 업데이트
+      // Update the cache of the drawing canvas with the new raindrop shape
+      drawingCanvas.updateCache("source-over");
+      maskFilter = new AlphaMaskFilter(drawingCanvas.cacheCanvas);
+      bitmap.filters = [maskFilter];
+      bitmap.updateCache();
     });
 
-    // Stage 업데이트
+    // Update the stage to render the changes
     stage.update();
   }
 }

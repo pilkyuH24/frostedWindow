@@ -1,14 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>EaselJS with Vite</title>
-  <script type="module" src="/src/main.js" defer></script>
-  <link rel="stylesheet" href="/src/style.css" />
-  <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Summer Rain</title>
+    <script type="module" src="/src/main.js" defer></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="/src/style.css" />
+    <script src="https://code.createjs.com/1.0.0/createjs.min.js"></script>
+    <link rel="icon" href="./public/favicon.png"> 
+  </head>
+  <body>
+    <div id="initial-container">
+      <button id="start-button">
+        <img
+          src="/umbrella-svgrepo-com.svg"
+          style="width: 100px; height: 100px"
+          alt="Start"
+        />
+      </button>
+    </div>
 
-</head>
-<body>
-  <canvas id="testCanvas"></canvas>
-</body>
+    <canvas id="mainCanvas"></canvas>
+    <div class="rain front-row"></div>
+    <div class="rain back-row"></div>
+    <div class="rain start-row1"></div>
+    <div class="rain start-row2"></div>
+    <div class="rain start-row3"></div>
+
+    <button id="speaker-button" aria-label="음악 재생/정지" title="play/pause">
+      <img id="speaker-icon" src="/speaker-2-svgrepo-com.svg" alt="playing" />
+    </button>
+    <audio
+      id="background-music"
+      src="/cozy-soft-rain-under-umbrella.mp3"
+      loop
+    ></audio>
+  </body>
 </html>
